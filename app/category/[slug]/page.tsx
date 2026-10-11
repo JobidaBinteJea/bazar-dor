@@ -2,14 +2,15 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getProducts, type Product, formatBDT } from "@/lib/bazar";
 
-export default function CategoryPage() {
-  const params = useParams<{ slug: string }>();
-  const slug = decodeURIComponent(params.slug);
+type CategoryPageProps = {
+  params: Promise<{ slug: string }>;
+};
 
+export default function CategoryPage({ params }: CategoryPageProps) {
+  const [slug, setSlug] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState("default");
@@ -18,26 +19,57 @@ export default function CategoryPage() {
   useEffect(() => {
     let active = true;
 
+    params
+      .then(({ slug: routeSlug }) => {
+        if (active) {
+          setSlug(decodeURIComponent(routeSlug));
+        }
+      })
+      .catch((error) => {
+        console.error("Category params error:", error);
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [params]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    let active = true;
+    setLoading(true);
+
     getProducts()
       .then((all) => {
+        const normalizedSlug = slug.toLowerCase().replace(/-/g, " ");
+
         const matches = all.filter((product) => {
-          const categorySlug = product.categorySlug.toLowerCase();
+          const categorySlug = product.categorySlug
+            .toLowerCase()
+            .replace(/-/g, " ");
           const category = product.category.toLowerCase();
 
           return (
-            categorySlug === slug.toLowerCase() ||
-            category === slug.toLowerCase() ||
-            categorySlug.replace(/-/g, " ") === slug.toLowerCase().replace(/-/g, " ")
+            categorySlug === normalizedSlug ||
+            category === normalizedSlug
           );
         });
 
         if (active) {
           setProducts(matches);
-          setCategoryName(matches[0]?.category || slug.replace(/-/g, " "));
+          setCategoryName(
+            matches[0]?.category || slug.replace(/-/g, " ")
+          );
         }
       })
-      .catch(() => {
-        if (active) setProducts([]);
+      .catch((error) => {
+        console.error("Category products error:", error);
+        if (active) {
+          setProducts([]);
+          setCategoryName(slug.replace(/-/g, " "));
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -62,10 +94,14 @@ export default function CategoryPage() {
 
       <div className="mt-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold text-green-700">পণ্য ক্যাটাগরি</p>
+          <p className="text-sm font-semibold text-green-700">
+            পণ্য ক্যাটাগরি
+          </p>
+
           <h1 className="mt-1 text-3xl font-bold capitalize">
             🛒 {categoryName || slug.replace(/-/g, " ")}
           </h1>
+
           <p className="mt-2 text-gray-600">
             এই ক্যাটাগরির পণ্য ও বর্তমান প্রদর্শিত দাম।
           </p>
@@ -88,17 +124,25 @@ export default function CategoryPage() {
       {loading ? (
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
-            <div key={index} className="h-56 animate-pulse rounded-2xl bg-gray-200" />
+            <div
+              key={index}
+              className="h-56 animate-pulse rounded-2xl bg-gray-200"
+            />
           ))}
         </div>
       ) : sortedProducts.length === 0 ? (
         <div className="py-20 text-center">
           <p className="text-5xl">📦</p>
-          <h2 className="mt-4 text-xl font-bold">এই ক্যাটাগরিতে পণ্য পাওয়া যায়নি</h2>
+          <h2 className="mt-4 text-xl font-bold">
+            এই ক্যাটাগরিতে পণ্য পাওয়া যায়নি
+          </h2>
           <p className="mt-2 text-gray-600">
             ক্যাটাগরির নাম ভুল হতে পারে অথবা API-তে পণ্য নেই।
           </p>
-          <Link href="/" className="mt-5 inline-block rounded-lg bg-green-700 px-5 py-3 text-white">
+          <Link
+            href="/"
+            className="mt-5 inline-block rounded-lg bg-green-700 px-5 py-3 text-white"
+          >
             সব পণ্য দেখো
           </Link>
         </div>
@@ -113,12 +157,23 @@ export default function CategoryPage() {
               <div className="flex h-28 items-center justify-center rounded-xl bg-green-50 text-6xl">
                 {product.emoji}
               </div>
-              <p className="mt-4 text-sm text-gray-500">{product.category}</p>
-              <h2 className="mt-1 text-lg font-bold">{product.name}</h2>
+
+              <p className="mt-4 text-sm text-gray-500">
+                {product.category}
+              </p>
+
+              <h2 className="mt-1 text-lg font-bold">
+                {product.name}
+              </h2>
+
               <p className="mt-3 text-2xl font-bold text-green-700">
                 ৳{formatBDT(product.price)}
               </p>
-              <p className="mt-1 text-sm text-gray-500">{product.unit}</p>
+
+              <p className="mt-1 text-sm text-gray-500">
+                {product.unit}
+              </p>
+
               <span className="mt-4 inline-block text-sm font-semibold text-green-700">
                 বিস্তারিত দেখো →
               </span>
